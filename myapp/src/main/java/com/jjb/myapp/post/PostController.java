@@ -1,6 +1,8 @@
 package com.jjb.myapp.post;
 
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,49 +22,23 @@ public class PostController {
     Map<Long, Post> map = new ConcurrentHashMap<>();
     AtomicLong num = new AtomicLong(0);
 
-    // post 목록 화면을 제작 post.html, post.js
-    // fetch api를 사용하여 /posts 주소를 호출한 후
-    // 배열 목록을 div(카드)로 표시한다.
-
-//    -----------------
-//    | 게시자         |
-//    | ------------- |
-//    | 제목(h3)       |
-//    | 본문(p)        |
-//    |  .....        |
-//    |  .....        |
-//    | ------------- |
-//    | 생성시간       |
-//    -----------------
+    @Autowired
+    PostRepository repo;
+    public PostController(PostRepository repo) {
+        this.repo = repo;
+    }
 
     @GetMapping
     public List<Post> getPostList() {
-//        // 증가시키고 값 가져오기
-//        int no = num.incrementAndGet();
-//        map.put(no, Post.builder()
-//                        .no(no)
-//                        .creatorName("홍길동")
-//                        .title("1Lorem, ipsum dolor.")
-//                        .content("Lorem ipsum dolor sit amet, consectetur adipisicing elit. Repudiandae maiores sunt ab beatae provident? Eius non accusantium vitae dolor ipsa!")
-//                        .createdTime(new Date().getTime())
-//                        .build());
-//
-//        no = num.incrementAndGet();
-//        map.put(no, Post.builder()
-//                        .no(no)
-//                        .creatorName("홍길동")
-//                        .title("2Lorem, ipsum dolor.")
-//                        .content("Lorem ipsum dolor sit amet, consectetur adipisicing elit. Repudiandae maiores sunt ab beatae provident? Eius non accusantium vitae dolor ipsa!")
-//                        .createdTime(new Date().getTime())
-//                        .build());
 
-        var list = new ArrayList<>(map.values());
-        // 람다식(lambda expression)
-        // 식이 1개인 함수식;
-        // 매개변수 영역과 함수 본체를 화살표로 구분함
-        // 함수 본체의 수식 값이 반환 값
-        list.sort((a,b)-> (int)(b.getNo() - a.getNo()));
+//        var list = new ArrayList<>(map.values());
+//        // 람다식(lambda expression)
+//        // 식이 1개인 함수식;
+//        // 매개변수 영역과 함수 본체를 화살표로 구분함
+//        // 함수 본체의 수식 값이 반환 값
+//        list.sort((a,b)-> (int)(b.getNo() - a.getNo()));
 
+        List<Post> list = repo.findAll(Sort.by("no").ascending());
         return list;
     }
 
@@ -81,7 +57,6 @@ public class PostController {
     @PostMapping
     public ResponseEntity<Map<String, Object>> addPost(@RequestBody Post post) {
 //     1. 입력값 검증(title, content)
-
 //      -> 입력값 오류(빈 값)가 있으면 400 에러 띄움
         if(post.getTitle() == null || post.getContent() == null || post.getContent().isEmpty() || post.getTitle().isEmpty()){
             Map<String, Object> response = new HashMap<>();
@@ -91,6 +66,7 @@ public class PostController {
         }
 
 //     2. 채번: 번호를 딴다(1 .. 2, 3....)
+        // 데이터베이스의 auto-increment 사용할 것이므로 아래 2줄은 필요없어진다.
         long no = num.incrementAndGet();
         post.setNo(no);
 
@@ -98,33 +74,39 @@ public class PostController {
         post.setCreatedTime(new Date().getTime());
 
 //     4. 맵에 추가
-        map.put(no, post);
-        System.out.println(post);
+//        map.put(no, post);
+//        System.out.println(post);
+        Post savedPost = repo.save(post);
 
 //     5. 생성된 객체를 맵에서 찾아서 반환, 201
-        Map<String, Object> res = new HashMap<>();
-        System.out.println(post.getNo());
-        res.put("data", map.get(no));
-        res.put("message", "created");
+//        Optional<Post> savedPost = repo.findById(post.getNo());
+        if (savedPost != null) {
+            Map<String, Object> res = new HashMap<>();
+            res.put("data", savedPost.getNo());
+            res.put("message", "created");
 
-        System.out.println(ResponseEntity.status(HttpStatus.CREATED).body(res));
+            return ResponseEntity.status(HttpStatus.CREATED).body(res);
+        }
+
+        return ResponseEntity.ok().build();
 //        return ResponseEntity.status(HttpStatus.CREATED).build();
-        return ResponseEntity.status(HttpStatus.CREATED).body(res);
+
     }
 
     @DeleteMapping(value = "/{no}")
-    // @PathVariable("email") : 경로 문자열{email}과 변수명 String email이 동일하면 안써도 됨.
-    public ResponseEntity removeContact(@PathVariable Long no) {
+    public ResponseEntity removeContent(@PathVariable Long no) {
         System.out.println(no);
-        if (map.get(no) == null) {
+//        if (map.get(no) == null) {
+        if (!repo.findById(no).isPresent()) {
             // 404: Not Found, 해당 경로에 리소스가 없음.
-            // DELETE /contact/...
+            // DELETE /content/...
             // Response Status code : 404
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
 
         // 객체(리소스) 삭제
-        map.remove(no);
+//        map.remove(no);
+        repo.deleteById(no);
         return ResponseEntity.status(HttpStatus.OK).build();
     }
 }
